@@ -36,9 +36,9 @@ for (const [name, opt] of [['desktop', { viewport: { width: 1280, height: 900 },
     // 瀏覽器 vs node：300 盤
     let seed = 4242; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const cases = [];
     for (let i = 0; i < 300; i++) cases.push([Date.UTC(1900 + Math.floor(R() * 200), Math.floor(R() * 12), 1 + Math.floor(R() * 28), Math.floor(R() * 24), Math.floor(R() * 60)), -180 + R() * 360, R() < .5 ? 'm' : 'f']);
-    const br = await p.evaluate((cases) => cases.map(([w, l, s]) => { const Z = window.__zixi, C = Z.buildChart(w, l, s), A = Z.analyzeZixi(C); return JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, r: A.range, m: A.methods.map(m => [m.id, m.how]) }); }), cases);
-    let same = 0; cases.forEach(([w, l, s], i) => { const C = buildChart(w, l, s), A = analyzeZixi(C); if (JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, r: A.range, m: A.methods.map(m => [m.id, m.how]) }) === br[i]) same++; });
-    log.push(`瀏覽器 vs node：300 盤四柱、各法數目、彙整、各法說明全同 ${same}/300`);
+    const br = await p.evaluate((cases) => cases.map(([w, l, s]) => { const Z = window.__zixi, C = Z.buildChart(w, l, s), A = Z.analyzeZixi(C); return JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }); }), cases);
+    let same = 0; cases.forEach(([w, l, s], i) => { const C = buildChart(w, l, s), A = analyzeZixi(C); if (JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }) === br[i]) same++; });
+    log.push(`瀏覽器 vs node：300 盤四柱、老師三法、彙整、參考各法說明全同 ${same}/300`);
     // 瀏覽器內渲染 1000 盤 #sheet 遮蔽字
     const r2 = await p.evaluate(({ BAN }) => { const Z = window.__zixi; let seed = 99, hits = [], crash = 0; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const d = document.createElement('div'); document.body.appendChild(d);
       for (let i = 0; i < 1000; i++) { const st = { d: String(1800 + Math.floor(R() * 400)) + String(1 + Math.floor(R() * 12)).padStart(2, '0') + String(1 + Math.floor(R() * 28)).padStart(2, '0'), t: R() < .2 ? '' : String(Math.floor(R() * 24)).padStart(2, '0') + String(Math.floor(R() * 60)).padStart(2, '0'), u: R() < .1 ? '1' : '0', g: R() < .5 ? 'm' : 'f', lon: String(-180 + R() * 360), p: '' };

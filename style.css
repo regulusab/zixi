@@ -82,3 +82,6 @@ ul.ln{padding-left:1.2em;font-size:14.5px}ul.ln li{margin:4px 0}
 #poemCard summary,#about summary{font-weight:700;cursor:pointer}
 @media(max-width:480px){table.bz td.g{font-size:20px}table.cs td{font-size:11px}}
 @media print{#poemCard{display:none!important}ol.ms>li{background:none;break-inside:avoid}}
+.ok{font-size:11.5px;background:#2f6b3a;color:#fff;border-radius:3px;padding:0 5px;margin-left:8px;vertical-align:middle;font-weight:600}
+table.tm{border-collapse:collapse;width:100%;margin:8px 0;font-size:14.5px}table.tm th,table.tm td{border:1px solid #e3d3ad;padding:5px 6px;text-align:center;vertical-align:middle}table.tm thead th{background:#f6ecd4}table.tm td.g2{font-size:20px;font-weight:700}
+h2.ref{color:#6b5a48;border-left-color:#b9a88c}ol.ms.ref>li{border-left-color:#b9a88c;background:#fbf8f1}

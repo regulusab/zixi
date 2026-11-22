@@ -57,6 +57,38 @@ const countIn = (C, kinds, mode) => { let n = 0; C.pil.forEach((p, i) => { if (i
 const anyIn = (C, kinds) => countIn(C, kinds, 'all') > 0;
 const ROLE = { 用: '用神', 喜: '喜神', 輔: '輔神', 忌: '忌神', 閒: '閒神' };
 
+
+// 月令旺衰 → 子緣厚薄（本站對應：旺相＝厚、休＝中、囚死＝薄；只說子緣，不改子數）
+export const ZIYUAN = { 旺: '厚', 相: '厚', 休: '中', 囚: '薄', 死: '薄' };
+const poemRes = st => { const L = POEM_LINES.zp[st]; return { stage: STAGES[st], line: L.l, n: L.n, extra: L.adopt ? '原句「除非養取他之子」：可收養他人之子。' : L.girl ? '原句只言頭胎為女，未給數目。' : L.masked ? '原句未給數目。' : L.note || '', cs: st === 0 ? '原句「長生四子中旬半」：子數取原數四；「中旬半」只錄原文，不減半。' : '' }; };
+/** 老師確認三法：只用歌訣原數，不做旺相倍加、休囚減半、沖空折減；月令旺衰只論子緣厚薄 */
+function teacherMethods(C, R, o) {
+  const { P, pil, A } = C, male = R.male, mBr = pil[1].br, pct = w => C.score[w] / C.tot;
+  const out = [];
+  const mk = (id, title, w, g, why, extraNote) => {
+    const st = stageOf(g, o.hourBr), r = poemRes(st), ws = wangXiangOf(mBr, w);
+    const t = { id, title, w, g, why, st, ...r, ws, ziyuan: ZIYUAN[ws], son: YANG_OF[w], dau: YIN_OF[w], note: extraNote || '' };
+    if (w === '土') { const s2 = stageOf('戊', o.hourBr, { tuShen: true }); t.tu = `土另說：徐樂吾評註「土居中央，寄生於寅申」，若以申起，時支${o.hourZ}為「${STAGES[s2]}」，歌句「${POEM_LINES.zp[s2].l}」。本站子數仍依寅起（火土同宮），此說只列文字。`; }
+    out.push(t); return t;
+  };
+  // 第一法：男命官殺、女命食傷之五行
+  mk('t1', male ? '第一法：官殺五行在時支' : '第一法：食傷五行在時支', o.starW, YANG_OF[o.starW],
+    `${male ? '男命以官殺為子' : '女命以食傷為子'}：日主${C.dm}（${C.dw}）${male ? '剋我者' : '我生者'}為${o.starW}。取${o.starW}之陽干${YANG_OF[o.starW]}起長生（${ZHI[CS_START[YANG_OF[o.starW]]]}），順數至時支${o.hourZ}。`);
+  // 第二法：時干本身
+  { const g = o.hourG, w = ganWx(g), y = isYang(g), gUse = YANG_OF[w];
+    const t = mk('t2', '第二法：時干在時支', w, gUse,
+      `時干${g}（${w}，${y ? '陽' : '陰'}干）。${y ? `${g}為陽干，起長生於${ZHI[CS_START[g]]}順數至時支${o.hourZ}。` : `${g}為陰干，與第一法同例，取${w}之陽干${gUse}起長生（${ZHI[CS_START[gUse]]}），順數至時支${o.hourZ}（《子平真詮》「用陽而不用陰」）。`}`,
+      y ? '' : `若改依陰干逆行（${g}起長生於${ZHI[CS_START[g]]}逆數），時支${o.hourZ}為「${STAGES[stageOf(g, o.hourBr)]}」；本站不採此讀，只列對照。`);
+    t.hourG = g; t.hourYang = y; }
+  // 第三法：最旺的用神
+  { const cand = [{ w: A.yong, k: `扶抑用神（${A.method}）` }]; if (A.tiaoW && A.tiaoW !== A.yong) cand.push({ w: A.tiaoW, k: '調候用神' });
+    cand.forEach(c => c.p = pct(c.w)); const best = cand.reduce((a, b) => b.p > a.p ? b : a);
+    mk('t3', '第三法：最旺的用神在時支', best.w, YANG_OF[best.w],
+      `用神取八字站引擎：${cand.map(c => `${c.k}${c.w}，佔全盤 ${(c.p * 100).toFixed(0)}%`).join('；')}。${cand.length > 1 ? `取分數較高者${best.w}。` : `只有一個用神${best.w}。`}取${best.w}之陽干${YANG_OF[best.w]}起長生（${ZHI[CS_START[YANG_OF[best.w]]]}），順數至時支${o.hourZ}。`);
+    out[2].cand = cand; }
+  return out;
+}
+
 /** 完整論斷 */
 export function analyzeZixi(C) {
   const { P, pil, dm, dw, sex, A } = C, male = sex !== 'f';
@@ -64,11 +96,11 @@ export function analyzeZixi(C) {
   const starW = male ? KE_ME(dw) : I_GEN(dw);
   const starKinds = male ? ['七殺', '正官'] : ['食神', '傷官'];
   const stars = starsOf(C, starKinds);
-  const R = { male, starW, starKinds, stars, methods: [], counts: [], gender: [], timing: {} };
+  const R = { male, starW, starKinds, stars, methods: [], counts: [], refCounts: [], gender: [], timing: {} };
   const pct = w => C.score[w] / C.tot;
   R.strength = { pct: pct(starW), ws: wangXiangOf(pil[1].br, starW), tou: countIn(C, starKinds, 'gan'), ben: countIn(C, starKinds, 'ben') - countIn(C, starKinds, 'gan'), all: countIn(C, starKinds, 'all'), role: A.role(starW), lev: A.lev, yong: A.yong, xi: A.xi, ji: A.ji, geName: A.geName };
   const add = (m) => { R.methods.push(m); return m; };
-  const addCount = (label, n, ref) => { if (n) R.counts.push({ label, lo: n[0], hi: n[1], ref }); };
+  const addCount = (label, n, ref) => { if (n) R.refCounts.push({ label, lo: n[0], hi: n[1], ref }); };
   const yangG = YANG_OF[starW];
   const st = stageOf(yangG, hourBr);
   R.hourStage = st;
@@ -76,19 +108,10 @@ export function analyzeZixi(C) {
   const jieMs = P.jie.lmt ? Date.UTC(+P.jie.lmt.slice(0, 4), +P.jie.lmt.slice(5, 7) - 1, +P.jie.lmt.slice(8, 10), +P.jie.lmt.slice(11, 13), +P.jie.lmt.slice(14, 16)) : null;
   const daysAfterJie = jieMs != null ? Math.floor((C.wall - jieMs) / D) + 1 : null;
 
-  // ---- 一、長生沐浴歌 ----
+  // ---- 一、老師確認三法（長生沐浴歌原數）----
+  R.teacher = teacherMethods(C, R, { starW, hourBr, hourG, hourZ, daysAfterJie });
+  R.teacher.forEach(t => { if (t.n) R.counts.push({ label: t.title, lo: t.n[0], hi: t.n[1], ref: t.id }); });
   if (male) {
-    const L = POEM_LINES.zp[st];
-    const m = add({ id: 'zp', title: '《子平真詮》長生沐浴歌（用陽不用陰）', kind: 'count', q: ['zp_intro', 'zp_yang', 'zp_shizhi', 'xu_star', 'xu_poem'],
-      how: `日主${dm}（${dw}），剋我者${starW}為子星；依「用陽而不用陰」，取${starW}之陽干${yangG}起長生（${ZHI[CS_START[yangG]]}），順數至時支${hourZ}為「${STAGES[st]}」。`,
-      line: L.l, n: L.n, stage: STAGES[st] });
-    if (L.n) addCount('子平真詮・長生沐浴歌', L.n, 'zp');
-    if (st === 0) { m.alt = `「中旬半」：${L.alt.why}，則為二子。出生在交節（${P.jie.name}）後第 ${daysAfterJie} 日；人元司令如何劃分，原文與評註未給本站可直接套用的日數，兩說並列。`; addCount('子平真詮・長生「中旬半」減半（徐樂吾評註）', [2, 2], 'zp'); }
-    if (L.adopt) m.extra = '原句「除非養取他之子」：可收養他人之子。';
-    if (L.girl) m.extra = '原句只言頭胎為女，未給數目。';
-    if (L.masked) m.extra = '原句未給數目。';
-    if (L.note) m.extra = L.note;
-    if (starW === '土') { const s2 = stageOf('戊', hourBr, { tuShen: true }); const L2 = POEM_LINES.zp[s2]; m.tu = `土另說：徐樂吾評註云「土居中央，寄生於寅申」，若以申起土之長生，時支${hourZ}為「${STAGES[s2]}」，歌句「${L2.l}」${L2.n ? `，${L2.n[0] === L2.n[1] ? L2.n[0] : L2.n[0] + '～' + L2.n[1]} 子` : '，未給數目'}。`; if (L2.n) addCount('子平真詮・土寄申另說', L2.n, 'zp'); m.q.push('xu_tu'); }
     // 淵海子平：七殺
     const qs = YANG_OF[starW] === undefined ? null : (isYang(dm) ? YANG_OF[starW] : YIN_OF[starW]);
     const s1 = stageOf(qs, hourBr), L1 = POEM_LINES.yh[s1];
@@ -105,14 +128,8 @@ export function analyzeZixi(C) {
       yhm.line = null; yhm.n = null;
       if (L1.n) addCount('淵海子平・陰干逆行讀', L1.n, 'yh'); if (Ly.n) addCount('淵海子平・五行長生讀', Ly.n, 'yh');
     }
-  } else {
-    const L = POEM_LINES.zp[st];
-    const m = add({ id: 'zpf', title: '長生沐浴歌套用女命（來源待核）', kind: 'count', pending: true, q: ['zp_intro', 'sm_f1', 'sm_fmany'],
-      how: `女命以我生者（食傷）為子：日主${dm}（${dw}）生${starW}。仿《子平真詮》「用陽不用陰」，取${yangG}起長生（${ZHI[CS_START[yangG]]}），順數至時支${hourZ}為「${STAGES[st]}」。《子平真詮》所錄歌訣末句作「男子宮中子細詳」，《星學大成》錄本作「男女宫中仔細詳」；女命套用此歌，未見古籍明例，故標來源待核。`,
-      line: L.l, n: L.n, stage: STAGES[st] });
-    if (L.n) addCount('長生沐浴歌套用女命（來源待核）', L.n, 'zpf');
-    if (st === 0) { m.alt = `「中旬半」另說減半為二（徐樂吾評註）；出生在交節（${P.jie.name}）後第 ${daysAfterJie} 日。`; addCount('長生「中旬半」減半（來源待核）', [2, 2], 'zpf'); }
-    if (L.note) m.extra = L.note; if (L.girl) m.extra = '原句只言頭胎為女，未給數目。'; if (L.masked) m.extra = '原句未給數目。'; if (L.adopt) m.extra = '原句「除非養取他之子」：可收養他人之子。';
+  }
+  if (!male) {
     const cls = SW(st);
     add({ id: 'smf', title: '《三命通會》女命子居生旺', kind: cls === 'sw' ? 'pos' : 'note', q: ['sm_fmany'],
       how: `時支${hourZ}對${yangG}為「${STAGES[st]}」，${SW_NAME[cls]}${cls === 'sw' ? '，合「子居生旺之地主多子」。' : '，此條不發動。'}`, cond: cls === 'sw' });
@@ -124,7 +141,7 @@ export function analyzeZixi(C) {
     const f = cls === 'sw' ? 2 : cls === 'sj' ? 0.5 : 1;
     const v = [a * f, b * f];
     add({ id: 'sc', title: '《淵海子平》生成之數・《三命通會》四九之數', kind: 'count', q: ['yh_sc', 'sm_guan'],
-      how: `子星${starW}之生數 ${a}、成數 ${b}（《三命通會》「甲乙日用金為嗣金旺則四九之子合數」即金之生成數）。時支${hourZ}對${yangG}為「${STAGES[st]}」，屬${SW_NAME[cls]}${cls === 'sw' ? '，「生旺倍加」' : cls === 'sj' ? '，「死絕減半」' : '，不加不減'}：生數讀 ${fmtN(v[0])}，成數讀 ${fmtN(v[1])}。原文未言取生數或成數，兩者並列；生旺取長生、臨官、帝旺，死絕取死、絕，為本站判準。原文又云「太過不及，不以此斷」，官殺太過或不及之盤，此數僅供對照。`,
+      how: `【僅供參考：老師規定取數只用歌訣原數，不用「生旺倍加、死絕減半」，此條不入彙整】子星${starW}之生數 ${a}、成數 ${b}（《三命通會》「甲乙日用金為嗣金旺則四九之子合數」即金之生成數）。時支${hourZ}對${yangG}為「${STAGES[st]}」，屬${SW_NAME[cls]}${cls === 'sw' ? '，「生旺倍加」' : cls === 'sj' ? '，「死絕減半」' : '，不加不減'}：生數讀 ${fmtN(v[0])}，成數讀 ${fmtN(v[1])}。原文未言取生數或成數，兩者並列；生旺取長生、臨官、帝旺，死絕取死、絕，為本站判準。原文又云「太過不及，不以此斷」，官殺太過或不及之盤，此數僅供對照。`,
       n: [Math.floor(Math.min(...v)), Math.ceil(Math.max(...v))] });
     addCount('生成之數（生數讀）', [Math.floor(v[0]), Math.ceil(v[0])], 'sc');
     addCount('生成之數（成數讀）', [Math.floor(v[1]), Math.ceil(v[1])], 'sc');
@@ -134,20 +151,6 @@ export function analyzeZixi(C) {
     add({ id: 'cnt', title: '《淵海子平》一殺一子', kind: 'count', q: ['yh_cnt'],
       how: `七殺（${qs}）：天干透 ${n1} 處；天干加地支本氣 ${n2} 處；天干加全部藏干 ${n3} 處。原文未言藏干算否，三讀並列。`, n: [Math.min(n1, n2, n3), Math.max(n1, n2, n3)] });
     addCount('一殺一子（天干）', [n1, n1], 'cnt'); addCount('一殺一子（天干＋本氣）', [n2, n2], 'cnt'); addCount('一殺一子（天干＋藏干）', [n3, n3], 'cnt');
-  }
-  else {
-    // 女命：生成之數、一位一子套用食傷（來源待核）
-    const [a, b] = SHENGCHENG[starW], cls = SW(st);
-    const f = cls === 'sw' ? 2 : cls === 'sj' ? 0.5 : 1, v = [a * f, b * f];
-    add({ id: 'scf', title: '生成之數套用女命（來源待核）', kind: 'count', pending: true, q: ['yh_sc'],
-      how: `《淵海子平》此條就男命官殺而言；女命以食傷（${starW}）為子，套用其法：${starW}之生數 ${a}、成數 ${b}，時支${hourZ}對${yangG}為「${STAGES[st]}」，屬${SW_NAME[cls]}${cls === 'sw' ? '，「生旺倍加」' : cls === 'sj' ? '，「死絕減半」' : '，不加不減'}：生數讀 ${fmtN(v[0])}，成數讀 ${fmtN(v[1])}。女命套用未見古籍明例，故標來源待核。`,
-      n: [Math.floor(Math.min(...v)), Math.ceil(Math.max(...v))] });
-    addCount('生成之數套用女命・生數讀（來源待核）', [Math.floor(v[0]), Math.ceil(v[0])], 'scf');
-    addCount('生成之數套用女命・成數讀（來源待核）', [Math.floor(v[1]), Math.ceil(v[1])], 'scf');
-    const n1 = countIn(C, starKinds, 'gan'), n2 = countIn(C, starKinds, 'ben'), n3 = countIn(C, starKinds, 'all');
-    add({ id: 'cntf', title: '一位一子套用女命食傷（來源待核）', kind: 'count', pending: true, q: ['yh_cnt'],
-      how: `《淵海子平》「一殺一子」就男命七殺而言；女命套用於食神、傷官：天干透 ${n1} 處；天干加地支本氣 ${n2} 處；天干加全部藏干 ${n3} 處。女命套用未見古籍明例，故標來源待核。`, n: [Math.min(n1, n2, n3), Math.max(n1, n2, n3)] });
-    addCount('食傷一位一子（天干，來源待核）', [n1, n1], 'cntf'); addCount('食傷一位一子（天干＋本氣，來源待核）', [n2, n2], 'cntf'); addCount('食傷一位一子（天干＋藏干，來源待核）', [n3, n3], 'cntf');
   }
 
   // ---- 三、星學大成納音法 ----
@@ -232,9 +235,6 @@ export function analyzeZixi(C) {
   if (st === 8) add({ id: 'mu', title: '子星入墓', kind: 'neg', q: ['sf_mu'], how: `時支${hourZ}為子星${yangG}之墓。` });
   if (SW(st) === 'sj' || ['傷官', '七殺'].includes(pil[3].ss)) add({ id: 'shao', title: '時臨死絕傷煞之鄉', kind: 'neg', q: ['sm2_shao', 'sm2_shi'], how: `${SW(st) === 'sj' ? `時支${hourZ}對子星為「${STAGES[st]}」` : ''}${SW(st) === 'sj' && ['傷官', '七殺'].includes(pil[3].ss) ? '；' : ''}${['傷官', '七殺'].includes(pil[3].ss) ? `時干${hourG}為${pil[3].ss}` : ''}：「言少子之斷」。` });
   if (male && (pil[3].ss === '傷官' || hourBen === '傷官')) add({ id: 'shishang', title: '時上傷官', kind: 'neg', q: ['yh_shishang'], how: '時柱見傷官。' });
-  { const yw = A.yong; const st2 = stageOf(YANG_OF[yw], hourBr);
-    add({ id: 'qt', title: '《窮通寶鑑》以用神為子', kind: 'note', pending: true, q: ['qt_yong'], how: `《窮通寶鑑》依各月調候取用神，本站未逐條排出；此處借八字站引擎扶抑用神（${yw}）試算：子星五行為${yw}（${YANG_OF[yw]}為男、${YIN_OF[yw]}為女），時支${hourZ}對${YANG_OF[yw]}為「${STAGES[st2]}」。用神取法不同，結果僅供對照（來源待核）。` }); }
-
   // ---- 六、大運、流年 ----
   R.timing = timing(C, R, st);
   // ---- 彙整 ----
@@ -292,8 +292,8 @@ export function allHours(wall0, lon, sex) {
   const hrs = [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23].map(h => h === 0 ? 30 : h * 60 + 30);
   return hrs.map((min, i) => {
     const C = buildChart(base + min * 6e4, lon, sex), R = analyzeZixi(C);
-    const m1 = R.methods.find(m => m.id === 'zp' || m.id === 'zpf'), m2 = R.methods.find(m => m.id === 'yh');
-    return { label: i === 0 ? '早子時（0–1 時）' : i === 12 ? '晚子時（23–24 時）' : ZHI[(i) % 12] + '時（' + (2 * i - 1) + '–' + (2 * i + 1) + ' 時）', hour: C.P.hour.gz, stage: m1.stage, line: m1.line, n: m1.n, alt: !!m1.alt, yh: m2 ? (m2.reads ? m2.reads.map(r => r.n) : [m2.n]) : null, yy: R.gender.find(g => g.fire)?.fire, range: R.range, kong: C.kong.includes(C.P.hour.br) };
+    const T = R.teacher;
+    return { t: T.map(t => ({ w: t.w, g: t.g, stage: t.stage, line: t.line, n: t.n })), label: i === 0 ? '早子時（0–1 時）' : i === 12 ? '晚子時（23–24 時）' : ZHI[(i) % 12] + '時（' + (2 * i - 1) + '–' + (2 * i + 1) + ' 時）', hour: C.P.hour.gz, yy: R.gender.find(g => g.fire)?.fire, range: R.range, kong: C.kong.includes(C.P.hour.br) };
   });
 }
 export { gz, GAN, ZHI, STAGES };
