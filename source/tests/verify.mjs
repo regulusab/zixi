@@ -79,5 +79,12 @@ const BAN = ['加一天', '前世', '風水', '夭', '送終', '損子', '傷損
     } catch (e) { crash++; if (crash < 5) bad(`當機 ${new Date(wall).toISOString()} ${lon} ${sex}: ${e.stack.split('\n').slice(0, 2).join(' ')}`); } }
   log(`模糊測試：20,000 盤（1800–2199 年、經度 −180～180、男女各半、最旺用神隨機指定或留空；每 50 盤另跑 13 時段表）：當機 ${crash}，遮蔽字／undefined／NaN 命中 ${hits}；三法皆落墓／胎而無原數者 ${noRange} 盤（頁面顯示「三法皆未給數目」，照常出結果）`);
   log(`  時支落於十二運的分布：${STAGES.map(s => s + ' ' + (lineHit[s] || 0)).join('、')}`); }
+// 7. 命造代碼
+{ const { parseCode } = await import('../src/mzcode.js');
+  const cases = [['19850315-1430-男--王小明', { d: '19850315', t: '1430', u: '0', g: 'm', n: '王小明' }], ['20261007-2210-女-甲-陳-大文', { d: '20261007', t: '2210', g: 'f', pf: '甲', n: '陳-大文' }], ['19900101-??-坤', { d: '19900101', u: '1', g: 'f' }], ['１９８５０３１５－０９０５－乾', { d: '19850315', t: '0905', g: 'm' }], ['abc', { d: '', u: '1' }]];
+  let ok = 0; for (const [c, e] of cases) { const r = parseCode(c).st; if (Object.entries(e).every(([k, v]) => r[k] === v)) ok++; else bad(`命造代碼 ${c} → ${JSON.stringify(r)}`); }
+  let seed = 5, crash = 0; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const CH = '0123456789-男女乾坤?:xa 王';
+  for (let i = 0; i < 5000; i++) { let c = ''; const L = Math.floor(R() * 30); for (let j = 0; j < L; j++) c += CH[Math.floor(R() * CH.length)]; try { const st = parseCode(c).st; const C = buildChart(Date.UTC(1990, 0, 1, 12), 121.5654, st.g); analyzeZixi(C, {}); } catch (e) { crash++; } }
+  log(`命造代碼解析：${ok}/${cases.length} 例相符；隨機 5000 個亂碼代碼：當機 ${crash}`); }
 log(fails ? `\n共 ${fails} 項不符` : '\n全部通過');
 fs.writeFileSync('tests/verify-result.txt', out.join('\n') + '\n');

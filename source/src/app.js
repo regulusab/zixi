@@ -3,6 +3,7 @@ import { buildChart, analyzeZixi, allHours, stageOf, CS_START, STAGES, YANG_OF, 
 import { Q, SRC, shown, POEM_USER, POEM_LINES, POEM_VARIANTS } from './texts.js';
 import { CITIES } from './cities.js';
 import { SOURCES } from './sources.js';
+import { parseCode, MZ_KEY } from './mzcode.js';
 
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -17,11 +18,11 @@ $('#lon').oninput = () => { const o = [...$('#city').options].find(o => o.value 
 $('#unk').onchange = () => { $('#time').disabled = $('#unk').checked; };
 
 $('#go').onclick = () => {
-  const st = { d: ($('#date').value || '').replace(/\D/g, ''), t: ($('#time').value || '').replace(/\D/g, '').slice(0, 4), u: $('#unk').checked ? '1' : '0', g: ($$('input[name=g]').find(r => r.checked) || {}).value || 'm', lon: $('#lon').value, y: $('#yw').value, p: ($('#city').selectedOptions[0] || {}).dataset?.n || '' };
-  history.replaceState(null, '', '?' + new URLSearchParams(st).toString());
+  const st = { d: ($('#date').value || '').replace(/\D/g, ''), t: ($('#time').value || '').replace(/\D/g, '').slice(0, 4), u: $('#unk').checked ? '1' : '0', g: ($$('input[name=g]').find(r => r.checked) || {}).value || 'm', lon: $('#lon').value, y: $('#yw').value, n: $('#name').value.trim(), p: ($('#city').selectedOptions[0] || {}).dataset?.n || '' };
+  history.replaceState(null, '', '?' + new URLSearchParams(Object.entries(st).filter(([k, v]) => v !== '' || ['d', 't'].includes(k))).toString());
   show(st);
 };
-function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', y: u.get('y') || '', p: u.get('p') || '' }; }
+function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', y: u.get('y') || '', n: u.get('n') || '', pf: u.get('pf') || '', p: u.get('p') || '' }; }
 
 export function readState(st) {
   const warn = [];
@@ -33,7 +34,8 @@ export function readState(st) {
   if (tm && +tm[1] < 24 && +tm[2] < 60) { h = +tm[1]; mi = +tm[2]; } else if (!unk) { unk = true; warn.push('未填出生時間，改列每個時辰的結果'); }
   if (unk && !tm) { h = 12; mi = 0; }
   const yw = '金木水火土'.includes(st.y || '') && (st.y || '').length === 1 ? st.y : '';
-  return { yw, wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
+  if (st.notes) warn.unshift(...st.notes);
+  return { name: String(st.n || '').slice(0, 40), pf: String(st.pf || '').slice(0, 20), code: st.code || '', yw, wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
 }
 
 function q(id) { const x = Q[id]; if (!x) return ''; const s = SRC[x.s]; return `<blockquote>${esc(shown(id))}${x.note ? `<span class="qn">（${esc(x.note)}）</span>` : ''}<cite>${esc(s.book)}${esc(x.ch)}（<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.site)}</a>）</cite></blockquote>`; }
@@ -45,7 +47,7 @@ function show(st) {
   $('#result').innerHTML = renderResult(S, C, R);
   $('#result').hidden = false;
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  $('#copyLink').onclick = copyLink; $('#printBtn').onclick = () => window.print(); $('#pdfBtn').onclick = downloadPdf;
+  $('#copyLink').onclick = copyLink; $('#printBtn').onclick = () => window.print(); $('#pdfBtn').onclick = downloadPdf; $('#docxBtn').onclick = downloadDocx; $('#lineSum').onclick = () => lineShare(summaryText(S, C, R)); $('#lineLink').onclick = () => lineShare(shareUrl());
   $('#again').onclick = () => { history.replaceState(null, '', location.pathname); $('#result').hidden = true; $('#form').scrollIntoView({ behavior: 'smooth' }); };
 }
 
@@ -53,7 +55,7 @@ export function renderResult(S, C, R) {
   const P = C.P, male = R.male, lon = S.lon;
   let h = `<div class="card" id="sheet">`;
   if (S.warn.length) h += `<p class="hint">說明：${S.warn.map(esc).join('；')}</p>`;
-  h += `<h2>命盤</h2><dl class="meta"><dt>性別</dt><dd>${male ? '男命' : '女命'}</dd>`;
+  h += `<h2>命盤</h2><dl class="meta">${S.name ? `<dt>姓名</dt><dd>${esc(S.name)}</dd>` : ''}${S.code ? `<dt>命造代碼</dt><dd>${esc(S.code)}${S.pf ? `（判法「${esc(S.pf)}」：本站排盤只有一種規則，判法不改變本站結果）` : ''}</dd>` : ''}<dt>性別</dt><dd>${male ? '男命' : '女命'}</dd>`;
   h += `<dt>出生</dt><dd>${S.unk ? fmt(P.wall).slice(0, 10) + '（時辰不確定，詳表暫以午時排）' : fmt(P.wall) + '（地方平時）'}</dd><dt>地點</dt><dd>${esc(S.p || '')} ${lon >= 0 ? '東經' : '西經'} ${Math.abs(lon)}°</dd>`;
   h += `<dt>節氣</dt><dd>${P.jie.name} ${P.jie.lmt || ''}（出生地地方平時）</dd>`;
   h += `<dt>日柱</dt><dd>${P.day.gz}${P.shift ? `（東經 70° 以西日柱干支進一位，日期不動；當地曆日干支為${P.day.rawGz}）` : ''}</dd>`;
@@ -115,7 +117,7 @@ export function renderResult(S, C, R) {
     h += `<h2>時辰不確定：各時辰對照</h2><p class="small">每個時段依老師三法重算（第一法子星五行不變；第二法時干隨時柱而變；第三法用輸入者指定的最旺用神${S.yw ? '「' + S.yw + '」' : '，未指定則不出數'}）。</p><div class="scroll"><table class="hrs"><thead><tr><th>時辰</th><th>時柱</th><th>第一法</th><th>第二法</th><th>第三法</th><th>三法彙整</th></tr></thead><tbody>${H.map(x => `<tr><td>${x.label}</td><td>${x.hour}</td>${x.t.map(t => t.unset ? '<td>未指定</td>' : `<td>${t.g}・${t.stage}<br><small>${esc(t.line)}</small><br><b>${nTxt(t.n)}</b></td>`).join('')}<td>${x.range ? (x.range.lo === x.range.hi ? x.range.lo : x.range.lo + '～' + x.range.hi) + ' 子' : '—'}</td></tr>`).join('')}</tbody></table></div><p class="small">晚子時時干依次日日干，日柱不換。</p>`;
   }
   h += `<p class="small">內容僅供參考。歌訣與引文中依遮蔽規定不寫的句子，以「……」標示。</p></div>`;
-  h += `<div class="actions"><button type="button" id="copyLink">複製分享連結</button><button type="button" id="pdfBtn">下載 PDF</button><button type="button" id="printBtn">列印</button><button type="button" id="again" class="pri">重新輸入</button></div>`;
+  h += `<div class="actions"><button type="button" id="copyLink">複製分享連結</button><button type="button" id="pdfBtn">下載 PDF</button><button type="button" id="docxBtn">下載 Word</button><button type="button" id="lineSum" class="line">LINE 傳摘要</button><button type="button" id="lineLink" class="line">LINE 傳連結</button><button type="button" id="printBtn">列印</button><button type="button" id="again" class="pri">重新輸入</button></div>`;
   return h;
 }
 function renderMethod(m) {
@@ -147,7 +149,8 @@ function renderPoem() {
 $('#poem').innerHTML = renderPoem();
 
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2200); }
-async function copyLink() { const u = location.href; try { await navigator.clipboard.writeText(u); toast('已複製分享連結'); } catch (e) { prompt('請複製這個連結', u); } }
+function shareUrl() { const u = new URL(location.href); u.searchParams.delete('n'); u.searchParams.delete('mz'); return u.toString(); }
+async function copyLink() { const u = shareUrl(); try { await navigator.clipboard.writeText(u); toast('已複製分享連結'); } catch (e) { prompt('請複製這個連結', u); } }
 // ---- PDF：html2canvas 逐頁轉圖，組成 A4 PDF ----
 async function downloadPdf() {
   const b = $('#pdfBtn'), lab = b.textContent; b.disabled = true; b.textContent = '產生 PDF 中…';
@@ -192,12 +195,77 @@ function makePdf(pages, pw, ph, m, iw) {
 
 // ---- 資料來源 ----
 $('#sources').innerHTML = SOURCES;
-// ---- 由網址還原 ----
-const s0 = stateFromUrl();
-if (s0) {
-  const S = readState(s0);
+// ---- 由網址還原；無網址參數時讀總入口命造代碼 ----
+function fillForm(s0, S) {
   $('#date').value = fmt(S.wall).slice(0, 10); if (s0.t && /^\d{4}$/.test(s0.t)) $('#time').value = s0.t.slice(0, 2) + ':' + s0.t.slice(2); $('#unk').checked = S.unk; $('#time').disabled = S.unk;
-  $$('input[name=g]').forEach(r => r.checked = r.value === S.sex); $('#lon').value = String(S.lon); $('#lon').oninput(); $('#yw').value = S.yw || '';
-  show(s0);
+  $$('input[name=g]').forEach(r => r.checked = r.value === S.sex); $('#lon').value = String(S.lon); $('#lon').oninput(); $('#yw').value = S.yw || ''; $('#name').value = S.name || '';
 }
-window.__zixi = { buildChart, analyzeZixi, readState, renderResult };
+let s0 = stateFromUrl();
+if (!s0) {
+  const qs = new URLSearchParams(location.search); let raw = qs.get('mz'), from = '網址 mz 參數';
+  if (!raw) { try { raw = localStorage.getItem(MZ_KEY); from = '總入口'; } catch (e) { raw = null; } }
+  if (raw && raw.trim()) {
+    const P = parseCode(raw); s0 = { ...P.st, notes: [`已讀取${from}命造代碼「${P.code}」自動排盤`, ...P.notes], code: P.code };
+    const keep = { d: s0.d || '', t: s0.t, u: s0.u, g: s0.g, lon: s0.lon, y: '', n: s0.n, pf: s0.pf, p: s0.p };
+    history.replaceState(null, '', '?' + new URLSearchParams(Object.entries(keep).filter(([k, v]) => v !== '' || ['d', 't'].includes(k))).toString());
+  }
+}
+if (s0) { const S = readState(s0); fillForm(s0, S); show(s0); }
+window.__zixi = { buildChart, analyzeZixi, readState, renderResult, parseCode, summaryText };
+
+// ---- LINE 分享（LINE 官方分享網址；手機開 LINE App，電腦開 LINE 網頁）----
+function lineShare(text) { const u = 'https://line.me/R/share?text=' + encodeURIComponent(text); const w = window.open(u, '_blank', 'noopener'); if (!w) location.href = u; }
+/** LINE 摘要：四柱、老師三法、彙整、連結（不含姓名） */
+export function summaryText(S, C, R) {
+  const P = C.P, T = R.teacher;
+  const nt = n => !n ? '原句未給數目' : n[0] === n[1] ? `${n[0]}子` : `${n[0]}～${n[1]}子`;
+  const lines = [`【八字論子息】${R.male ? '男命' : '女命'}`, `四柱：${P.year.gz} ${P.month.gz} ${P.day.gz} ${P.hour.gz}${S.unk ? '（時辰不確定，暫以午時）' : ''}`];
+  T.forEach(t => lines.push(t.unset ? `${t.title.split('：')[0]}（最旺用神）：未指定` : `${t.title.split('：')[0]}（${t.title.split('：')[1].replace('在時支', '')}${t.w}・${t.g}）：時支${C.pil[3].zhi}「${t.stage}」→ ${nt(t.n)}，子緣${t.ziyuan}`));
+  lines.push(`彙整（老師三法）：${R.range ? (R.range.lo === R.range.hi ? R.range.lo : R.range.lo + '～' + R.range.hi) + '子' : '三法皆未給數目'}`);
+  lines.push(`子星${R.starW}：${YANG_OF[R.starW]}陽為子、${YIN_OF[R.starW]}陰為女`);
+  lines.push(shareUrl());
+  return lines.join('\n');
+}
+// ---- Word：依 #sheet 內容逐段轉 docx（docx.js，與河洛理數站同法）----
+function sheetModel() {
+  const out = [{ h1: '八字論子息' + ($('#name').value.trim() ? '：' + $('#name').value.trim() : '') }];
+  const txt = e => e.innerText.replace(/\s+\n/g, '\n').trim();
+  const walk = el => {
+    for (const e of el.children) {
+      const tg = e.tagName;
+      if (e.classList.contains('actions') || tg === 'BUTTON' || tg === 'SCRIPT') continue;
+      if (tg === 'H2') out.push({ h2: txt(e) });
+      else if (tg === 'H3') out.push({ h3: txt(e) });
+      else if (tg === 'TABLE') out.push({ table: [...e.rows].map(r => [...r.cells].map(c => c.innerText.replace(/\n+/g, ' ').trim())) });
+      else if (tg === 'BLOCKQUOTE') { const c = e.querySelector('cite'); const q = [...e.childNodes].filter(n => n !== c).map(n => n.textContent).join('').trim(); out.push({ q, cite: c ? c.innerText.trim() : '' }); }
+      else if (tg === 'DL') out.push({ p: [...e.querySelectorAll('dt')].map(dt => dt.innerText + '：' + (dt.nextElementSibling ? dt.nextElementSibling.innerText : '')).join('\n') });
+      else if ([...e.children].some(c => /^(H2|H3|TABLE|BLOCKQUOTE|DIV|P|UL|OL|LI|DL)$/.test(c.tagName))) walk(e);
+      else { const t = txt(e); if (t) out.push({ p: (tg === 'LI' ? '・' : '') + t }); }
+    }
+  };
+  walk($('#sheet')); return out;
+}
+async function downloadDocx() {
+  const b = $('#docxBtn'), lab = b.textContent; b.disabled = true; b.textContent = '產生 Word 中…';
+  try {
+    if (!window.docx) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'docx.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    const D = window.docx, F = 'PMingLiU', ch = [];
+    const run = (t, o = {}) => new D.TextRun({ text: t, font: { ascii: F, eastAsia: F, hAnsi: F, cs: F }, ...o });
+    for (const x of sheetModel()) {
+      if (x.h1) ch.push(new D.Paragraph({ heading: D.HeadingLevel.TITLE, alignment: D.AlignmentType.CENTER, children: [run(x.h1, { bold: true, size: 36, color: '8A3D5C' })] }));
+      else if (x.h2) ch.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 }, children: [run(x.h2, { bold: true, size: 28, color: '8B2E2E' })] }));
+      else if (x.h3) ch.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_2, spacing: { before: 120 }, children: [run(x.h3, { bold: true, size: 24, color: '5A3A22' })] }));
+      else if (x.q != null) { ch.push(new D.Paragraph({ indent: { left: 360 }, spacing: { after: 20 }, children: [run(x.q, { size: 21 })] })); if (x.cite) ch.push(new D.Paragraph({ indent: { left: 360 }, spacing: { after: 100 }, children: [run(x.cite, { size: 18, color: '7A6650' })] })); }
+      else if (x.p != null) x.p.split('\n').forEach(l => ch.push(new D.Paragraph({ spacing: { after: 80 }, children: [run(l, { size: 22 })] })));
+      else if (x.table && x.table.length) { const n = Math.max(...x.table.map(r => r.length));
+        ch.push(new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, rows: x.table.map((r, ri) => { const cells = r.slice(); while (cells.length < n) cells.push('');
+          return new D.TableRow({ tableHeader: ri === 0, children: cells.map(c => new D.TableCell({ shading: ri === 0 ? { fill: 'F1E6CF' } : undefined, children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [run(String(c), { size: 19, bold: ri === 0 })] })] })) }); }) }));
+        ch.push(new D.Paragraph({ children: [] })); }
+    }
+    const doc = new D.Document({ creator: '八字論子息', title: '八字論子息', styles: { default: { document: { run: { font: { ascii: F, eastAsia: F, hAnsi: F }, size: 22 } } } }, sections: [{ properties: {}, children: ch }] });
+    const blob = await D.Packer.toBlob(doc);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `子息-${new URLSearchParams(location.search).get('d') || 'chart'}.docx`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  } catch (e) { toast('Word 產生失敗'); }
+  b.disabled = false; b.textContent = lab;
+}

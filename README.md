@@ -11,9 +11,10 @@
 - 子女星：男命官殺、女命食傷；陽干為男、陰干為女
 - 時辰不確定：列出十三個時段（早子、丑…亥、晚子）各自的結果
 - 時間：輸入時間視為當地地方平時；節氣依當地經度換算地方平時；零時換日；東經 70° 以西日柱干支進一位，日期不動；23 時起時干依次日
-- 分享：結果寫入網址參數；可列印、下載 PDF
+- 分享：結果寫入網址參數；可列印、下載 PDF、下載 Word；「LINE 傳摘要」（四柱、三法、彙整、連結，不含姓名）、「LINE 傳連結」
+- 命造代碼：讀取總入口輸入的命造代碼（年月日-時分-性別-判法-姓名，存於本瀏覽器 localStorage「rg.mingzao」）自動排盤；網址參數優先；亦可用 `?mz=代碼`
 - 全部在瀏覽器內計算，不上傳資料
 
 `source/` 為原始碼（`node source/build.mjs` 建置）與驗證程式；`source/tests/verify-result.txt`、`browser-local.txt` 為最近一次驗證結果（引文逐字核對需本機下載的原網頁，未收入本庫）。
 
-第三方：astronomy-engine（MIT）、lunar-javascript（MIT）、html2canvas（MIT）。強弱、用神判定借用 regulusab/bazi-site 的 analysis.js。古籍原文取自維基文庫等公開網頁，各條均附連結。
+第三方：astronomy-engine（MIT）、lunar-javascript（MIT）、html2canvas（MIT）、docx（MIT，vendor 自河洛理數站）。強弱、用神判定借用 regulusab/bazi-site 的 analysis.js。古籍原文取自維基文庫等公開網頁，各條均附連結。
