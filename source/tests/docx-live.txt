@@ -1,0 +1,1 @@
+Word 檢查 live-example.docx：python-docx 讀出 162 段、6 表；必要段落 7/7；遮蔽字命中 無；LibreOffice 轉 PDF 成功 7 頁
