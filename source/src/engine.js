@@ -80,17 +80,16 @@ function teacherMethods(C, R, o) {
       `時干${g}（${w}，${y ? '陽' : '陰'}干）。${y ? `${g}為陽干，起長生於${ZHI[CS_START[g]]}順數至時支${o.hourZ}。` : `${g}為陰干，與第一法同例，取${w}之陽干${gUse}起長生（${ZHI[CS_START[gUse]]}），順數至時支${o.hourZ}（《子平真詮》「用陽而不用陰」）。`}`,
       y ? '' : `若改依陰干逆行（${g}起長生於${ZHI[CS_START[g]]}逆數），時支${o.hourZ}為「${STAGES[stageOf(g, o.hourBr)]}」；本站不採此讀，只列對照。`);
     t.hourG = g; t.hourYang = y; }
-  // 第三法：最旺的用神
-  { const cand = [{ w: A.yong, k: `扶抑用神（${A.method}）` }]; if (A.tiaoW && A.tiaoW !== A.yong) cand.push({ w: A.tiaoW, k: '調候用神' });
-    cand.forEach(c => c.p = pct(c.w)); const best = cand.reduce((a, b) => b.p > a.p ? b : a);
-    mk('t3', '第三法：最旺的用神在時支', best.w, YANG_OF[best.w],
-      `用神取八字站引擎：${cand.map(c => `${c.k}${c.w}，佔全盤 ${(c.p * 100).toFixed(0)}%`).join('；')}。${cand.length > 1 ? `取分數較高者${best.w}。` : `只有一個用神${best.w}。`}取${best.w}之陽干${YANG_OF[best.w]}起長生（${ZHI[CS_START[YANG_OF[best.w]]]}），順數至時支${o.hourZ}。`);
-    out[2].cand = cand; }
+  // 第三法：最旺的用神（老師：由輸入者指定；本站不自動選取）
+  if (o.yw && YANG_OF[o.yw]) {
+    mk('t3', '第三法：最旺的用神在時支', o.yw, YANG_OF[o.yw],
+      `最旺用神由輸入者指定為${o.yw}。取${o.yw}之陽干${YANG_OF[o.yw]}起長生（${ZHI[CS_START[YANG_OF[o.yw]]]}），順數至時支${o.hourZ}。`);
+  } else out.push({ id: 't3', title: '第三法：最旺的用神在時支', unset: true, w: '', g: '', why: '最旺用神未指定（由輸入者指定）。本法不出子數，彙整只取第一、二法。', stage: '未指定', line: '—', n: null, ws: '', ziyuan: '', son: '', dau: '', note: '', extra: '', cs: '' });
   return out;
 }
 
 /** 完整論斷 */
-export function analyzeZixi(C) {
+export function analyzeZixi(C, opt = {}) {
   const { P, pil, dm, dw, sex, A } = C, male = sex !== 'f';
   const hourBr = P.hour.br, hourG = pil[3].gan, hourZ = pil[3].zhi;
   const starW = male ? KE_ME(dw) : I_GEN(dw);
@@ -109,7 +108,7 @@ export function analyzeZixi(C) {
   const daysAfterJie = jieMs != null ? Math.floor((C.wall - jieMs) / D) + 1 : null;
 
   // ---- 一、老師確認三法（長生沐浴歌原數）----
-  R.teacher = teacherMethods(C, R, { starW, hourBr, hourG, hourZ, daysAfterJie });
+  R.teacher = teacherMethods(C, R, { starW, hourBr, hourG, hourZ, daysAfterJie, yw: opt.yw });
   R.teacher.forEach(t => { if (t.n) R.counts.push({ label: t.title, lo: t.n[0], hi: t.n[1], ref: t.id }); });
   if (male) {
     // 淵海子平：七殺
@@ -287,13 +286,13 @@ export function timing(C, R, st) {
 }
 
 /** 時辰不確定：十三個時段（早子、丑…亥、晚子）的時柱與歌訣結果 */
-export function allHours(wall0, lon, sex) {
+export function allHours(wall0, lon, sex, yw) {
   const d = new Date(wall0), base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   const hrs = [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23].map(h => h === 0 ? 30 : h * 60 + 30);
   return hrs.map((min, i) => {
-    const C = buildChart(base + min * 6e4, lon, sex), R = analyzeZixi(C);
+    const C = buildChart(base + min * 6e4, lon, sex), R = analyzeZixi(C, { yw });
     const T = R.teacher;
-    return { t: T.map(t => ({ w: t.w, g: t.g, stage: t.stage, line: t.line, n: t.n })), label: i === 0 ? '早子時（0–1 時）' : i === 12 ? '晚子時（23–24 時）' : ZHI[(i) % 12] + '時（' + (2 * i - 1) + '–' + (2 * i + 1) + ' 時）', hour: C.P.hour.gz, yy: R.gender.find(g => g.fire)?.fire, range: R.range, kong: C.kong.includes(C.P.hour.br) };
+    return { t: T.map(t => ({ w: t.w, g: t.g, stage: t.stage, line: t.line, n: t.n, unset: !!t.unset })), label: i === 0 ? '早子時（0–1 時）' : i === 12 ? '晚子時（23–24 時）' : ZHI[(i) % 12] + '時（' + (2 * i - 1) + '–' + (2 * i + 1) + ' 時）', hour: C.P.hour.gz, yy: R.gender.find(g => g.fire)?.fire, range: R.range, kong: C.kong.includes(C.P.hour.br) };
   });
 }
 export { gz, GAN, ZHI, STAGES };

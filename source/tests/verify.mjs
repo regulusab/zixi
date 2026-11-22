@@ -45,17 +45,17 @@ const G2S = '甲乙丙丁戊己庚辛壬癸', Z = ZHI;
 // 4b. 範例
 { const P = pillars(Date.UTC(2026, 9, 7, 22, 10), -122.68), s = [P.year.gz, P.month.gz, P.day.gz, P.hour.gz].join(' ');
   log(`西經 122.68° 2026-10-07 22:10：${s}（寒露 ${P.jie.nextLmt} 地方平時）`); if (s !== '丙午 丁酉 乙卯 丁亥') bad('122.68W');
-  for (const sx of ['m', 'f']) { const C = buildChart(Date.UTC(2026, 9, 7, 22, 10), -122.68, sx), R = analyzeZixi(C);
-    log(`  ${sx === 'm' ? '男' : '女'}命三法：${R.teacher.map(t => `${t.title.split('：')[0]} ${t.w}（${t.g}）在亥「${t.stage}」→「${t.line}」${t.n ? t.n.join('～') : '未給'}，子緣${t.ziyuan}`).join('；')}；彙整 ${R.range ? R.range.lo + '～' + R.range.hi : '—'} 子`); } }
+  for (const [sx, yw] of [['m', ''], ['m', '水'], ['f', ''], ['f', '水']]) { const C = buildChart(Date.UTC(2026, 9, 7, 22, 10), -122.68, sx), R = analyzeZixi(C, { yw });
+    log(`  ${sx === 'm' ? '男' : '女'}命、最旺用神${yw || '未指定'}：${R.teacher.map(t => `${t.title.split('：')[0]} ${t.unset ? '未指定（由輸入者指定），不出數' : `${t.w}（${t.g}）在亥「${t.stage}」→「${t.line}」${t.n ? t.n.join('～') : '未給'}，子緣${t.ziyuan}`}`).join('；')}；彙整 ${R.range ? R.range.lo + '～' + R.range.hi : '—'} 子`); } }
 // 4e. 老師三法：子數只取歌訣原數（每個十二運對應固定數），彙整只取三法
 { const EXP = [[4, 4], [2, 2], [3, 3], [3, 3], [5, 5], [2, 2], [1, 1], [0, 0], null, [1, 1], null, [1, 3]]; let ok = 0, n = 0, seed = 31;
   const R0 = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-  for (let i = 0; i < 3000; i++) { const C = buildChart(Date.UTC(1900 + Math.floor(R0() * 200), Math.floor(R0() * 12), 1 + Math.floor(R0() * 28), Math.floor(R0() * 24), Math.floor(R0() * 60)), -180 + R0() * 360, R0() < .5 ? 'm' : 'f'), R = analyzeZixi(C);
-    for (const t of R.teacher) { n++; const st = stageOf(t.g, C.P.hour.br); if (JSON.stringify(t.n) === JSON.stringify(EXP[st]) && STAGES[st] === t.stage && isYangG(t.g)) ok++; else bad(`三法 ${t.id} ${t.g} ${t.stage}`); }
-    const ns = R.teacher.filter(t => t.n); const lo = ns.length ? Math.min(...ns.map(t => t.n[0])) : null, hi = ns.length ? Math.max(...ns.map(t => t.n[1])) : null;
+  for (let i = 0; i < 3000; i++) { const C = buildChart(Date.UTC(1900 + Math.floor(R0() * 200), Math.floor(R0() * 12), 1 + Math.floor(R0() * 28), Math.floor(R0() * 24), Math.floor(R0() * 60)), -180 + R0() * 360, R0() < .5 ? 'm' : 'f'), yw = ['', '金', '木', '水', '火', '土'][Math.floor(R0() * 6)], R = analyzeZixi(C, { yw });
+    if (!!R.teacher[2].unset !== !yw || (!yw && R.teacher[2].n) || (yw && R.teacher[2].w !== yw)) bad('第三法指定'); for (const t of R.teacher.filter(t => !t.unset)) { n++; const st = stageOf(t.g, C.P.hour.br); if (JSON.stringify(t.n) === JSON.stringify(EXP[st]) && STAGES[st] === t.stage && isYangG(t.g)) ok++; else bad(`三法 ${t.id} ${t.g} ${t.stage}`); }
+    const ns = R.teacher.filter(t => t.n && !t.unset); const lo = ns.length ? Math.min(...ns.map(t => t.n[0])) : null, hi = ns.length ? Math.max(...ns.map(t => t.n[1])) : null;
     if ((R.range ? R.range.lo : null) !== lo || (R.range ? R.range.hi : null) !== hi) bad('彙整非三法');
   }
-  log(`老師三法（3000 盤 × 3 法）：子數皆為歌訣原數、皆以陽干起長生 ${ok}/${n}；彙整只取三法：${fails ? '見上' : '相符'}`); }
+  log(`老師三法（3000 盤，最旺用神隨機指定或留空）：已出數各法子數皆為歌訣原數、皆以陽干起長生 ${ok}/${n}；第三法留空時不出數、指定時用所指定五行；彙整只取已出數之法：${fails ? '見上' : '相符'}`); }
 // 4c. 70°E 以西進一位、晚子時
 { const a = pillars(Date.UTC(2026, 0, 10, 12, 0), 120), b = pillars(Date.UTC(2026, 0, 10, 12, 0), -80); if ((a.day.idx + 1) % 60 !== b.day.idx) bad('70E shift'); else log(`東經 70° 以西日柱干支進一位（日期不動）：東經 120° ${a.day.gz} → 西經 80° ${b.day.gz}`);
   const c = pillars(Date.UTC(2026, 0, 10, 23, 30), 120), e = pillars(Date.UTC(2026, 0, 10, 22, 30), 120); if (c.day.gz !== e.day.gz) bad('晚子日柱'); log(`晚子時：2026-01-10 23:30 東經 120° 日柱 ${c.day.gz}（不換）、時柱 ${c.hour.gz}`); }
@@ -70,14 +70,14 @@ const norm = f => { let t = fs.readFileSync('src-texts/' + f, 'utf8'); if (f.end
 const BAN = ['加一天', '前世', '風水', '夭', '送終', '損子', '傷損', '有剋', '殂', '喪', '入泉鄉', '出家', '官符', '疾病', '殘疾', 'undefined', 'NaN', '[object'];
 { let seed = 777; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; let crash = 0, hits = 0, noRange = 0; const lineHit = {};
   for (let i = 0; i < 20000; i++) {
-    const wall = Date.UTC(1800 + Math.floor(R() * 400), Math.floor(R() * 12), 1 + Math.floor(R() * 28), Math.floor(R() * 24), Math.floor(R() * 60)), lon = -180 + R() * 360, sex = R() < .5 ? 'm' : 'f';
-    try { const C = buildChart(wall, lon, sex), A = analyzeZixi(C);
+    const wall = Date.UTC(1800 + Math.floor(R() * 400), Math.floor(R() * 12), 1 + Math.floor(R() * 28), Math.floor(R() * 24), Math.floor(R() * 60)), lon = -180 + R() * 360, sex = R() < .5 ? 'm' : 'f', yw = ['', '金', '木', '水', '火', '土'][Math.floor(R() * 6)];
+    try { const C = buildChart(wall, lon, sex), A = analyzeZixi(C, { yw });
       const txt = JSON.stringify(A, (k, v) => k === 'q' ? v.map(id => { if (!Q[id]) throw new Error('無此引文 ' + id); return shown(id); }) : v);
       for (const w of BAN) if (txt.includes(w)) { hits++; if (hits < 5) bad(`遮蔽字「${w}」出現於 ${new Date(wall).toISOString()} ${lon.toFixed(2)} ${sex}`); }
       if (!A.range) noRange++; const m = A.teacher[0]; lineHit[m.stage] = (lineHit[m.stage] || 0) + 1;
-      if (i % 50 === 0) { const H = allHours(wall, lon, sex); if (H.length !== 13) bad('時辰表'); if (JSON.stringify(H).match(/undefined|NaN/)) bad('時辰表 undefined'); }
+      if (i % 50 === 0) { const H = allHours(wall, lon, sex, yw); if (H.some(h => !!h.t[2].unset !== !yw)) bad('時辰表第三法'); if (H.length !== 13) bad('時辰表'); if (JSON.stringify(H).match(/undefined|NaN/)) bad('時辰表 undefined'); }
     } catch (e) { crash++; if (crash < 5) bad(`當機 ${new Date(wall).toISOString()} ${lon} ${sex}: ${e.stack.split('\n').slice(0, 2).join(' ')}`); } }
-  log(`模糊測試：20,000 盤（1800–2199 年、經度 −180～180、男女各半；每 50 盤另跑 13 時段表）：當機 ${crash}，遮蔽字／undefined／NaN 命中 ${hits}；三法皆落墓／胎而無原數者 ${noRange} 盤（頁面顯示「三法皆未給數目」，照常出結果）`);
+  log(`模糊測試：20,000 盤（1800–2199 年、經度 −180～180、男女各半、最旺用神隨機指定或留空；每 50 盤另跑 13 時段表）：當機 ${crash}，遮蔽字／undefined／NaN 命中 ${hits}；三法皆落墓／胎而無原數者 ${noRange} 盤（頁面顯示「三法皆未給數目」，照常出結果）`);
   log(`  時支落於十二運的分布：${STAGES.map(s => s + ' ' + (lineHit[s] || 0)).join('、')}`); }
 log(fails ? `\n共 ${fails} 項不符` : '\n全部通過');
 fs.writeFileSync('tests/verify-result.txt', out.join('\n') + '\n');

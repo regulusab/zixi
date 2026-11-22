@@ -17,11 +17,11 @@ $('#lon').oninput = () => { const o = [...$('#city').options].find(o => o.value 
 $('#unk').onchange = () => { $('#time').disabled = $('#unk').checked; };
 
 $('#go').onclick = () => {
-  const st = { d: ($('#date').value || '').replace(/\D/g, ''), t: ($('#time').value || '').replace(/\D/g, '').slice(0, 4), u: $('#unk').checked ? '1' : '0', g: ($$('input[name=g]').find(r => r.checked) || {}).value || 'm', lon: $('#lon').value, p: ($('#city').selectedOptions[0] || {}).dataset?.n || '' };
+  const st = { d: ($('#date').value || '').replace(/\D/g, ''), t: ($('#time').value || '').replace(/\D/g, '').slice(0, 4), u: $('#unk').checked ? '1' : '0', g: ($$('input[name=g]').find(r => r.checked) || {}).value || 'm', lon: $('#lon').value, y: $('#yw').value, p: ($('#city').selectedOptions[0] || {}).dataset?.n || '' };
   history.replaceState(null, '', '?' + new URLSearchParams(st).toString());
   show(st);
 };
-function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', p: u.get('p') || '' }; }
+function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', y: u.get('y') || '', p: u.get('p') || '' }; }
 
 export function readState(st) {
   const warn = [];
@@ -32,7 +32,8 @@ export function readState(st) {
   let unk = st.u === '1', h = 12, mi = 0; const tm = /^(\d\d)(\d\d)$/.exec(st.t || '');
   if (tm && +tm[1] < 24 && +tm[2] < 60) { h = +tm[1]; mi = +tm[2]; } else if (!unk) { unk = true; warn.push('未填出生時間，改列每個時辰的結果'); }
   if (unk && !tm) { h = 12; mi = 0; }
-  return { wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
+  const yw = '金木水火土'.includes(st.y || '') && (st.y || '').length === 1 ? st.y : '';
+  return { yw, wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
 }
 
 function q(id) { const x = Q[id]; if (!x) return ''; const s = SRC[x.s]; return `<blockquote>${esc(shown(id))}${x.note ? `<span class="qn">（${esc(x.note)}）</span>` : ''}<cite>${esc(s.book)}${esc(x.ch)}（<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.site)}</a>）</cite></blockquote>`; }
@@ -40,7 +41,7 @@ const KN = { pos: '有利', neg: '不利', note: '參考', count: '數目', tabl
 
 function show(st) {
   const S = readState(st);
-  const C = buildChart(S.wall, S.lon, S.sex), R = analyzeZixi(C);
+  const C = buildChart(S.wall, S.lon, S.sex), R = analyzeZixi(C, { yw: S.yw });
   $('#result').innerHTML = renderResult(S, C, R);
   $('#result').hidden = false;
   $('#result').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -68,24 +69,24 @@ export function renderResult(S, C, R) {
   h += q(male ? 'xu_star' : 'sm_f1') + q('sm_shi');
   if (R.stars.length) h += `<table class="st"><thead><tr><th>位置</th><th>干</th><th>十神</th><th>男女</th><th>坐支十二運</th><th>月令</th></tr></thead><tbody>${R.stars.map(s => `<tr><td>${s.where}</td><td>${s.g}</td><td>${s.ss}</td><td>${s.male ? '男' : '女'}</td><td>${s.seat}・${STAGES[s.stage]}</td><td>${s.ws}</td></tr>`).join('')}</tbody></table>`;
   else h += `<p>原局天干、藏干皆不見${male ? '官殺' : '食傷'}。</p>`;
-  h += `<p class="small">男女依陽干為男、陰干為女${male ? '（老師確認，《子平真詮》《三命通會》同）' : '（老師確認，《三命通會》同）'}；十二運以該干本身陰陽起（陽順陰逆），月令旺相休囚死依《三命通會》卷二。強弱參考：子星${R.starW}五行分數佔全盤 ${(SR.pct * 100).toFixed(0)}%（八字站計分法），月令${SR.ws}；天干透 ${SR.tou} 處、地支本氣 ${SR.ben} 處；八字站引擎判日主${SR.lev}、格局${SR.geName}、用神${SR.yong}、喜神${SR.xi}。</p>`;
+  h += `<p class="small">男女依陽干為男、陰干為女${male ? '（老師確認，《子平真詮》《三命通會》同）' : '（老師確認，《三命通會》同）'}；十二運以該干本身陰陽起（陽順陰逆），月令旺相休囚死依《三命通會》卷二。強弱參考：子星${R.starW}五行分數佔全盤 ${(SR.pct * 100).toFixed(0)}%（八字站計分法），月令${SR.ws}；天干透 ${SR.tou} 處、地支本氣 ${SR.ben} 處；八字站引擎判日主${SR.lev}、格局${SR.geName}（僅供參考；第三法最旺用神由輸入者指定，本站不自動選取）。</p>`;
   // 數目：老師確認三法
   const TM = R.teacher;
   h += `<h2>子女數目<span class="ok">老師確認</span></h2><p class="small">老師規則：以十二長生取子數歌訣斷之，三法並列。取數只用歌訣原數，不做「旺相倍加、休囚減半」與沖空折減；月令旺衰只論子緣厚薄。歌訣用老師所給文字（同《子平真詮》〈論妻子〉）。</p>`;
   h += `<div class="scroll"><table class="tm"><thead><tr><th></th>${TM.map(t => `<th>${esc(t.title.split('：')[0])}</th>`).join('')}</tr></thead><tbody>`;
   h += `<tr><th>取用</th>${TM.map(t => `<td>${esc(t.title.split('：')[1])}</td>`).join('')}</tr>`;
-  h += `<tr><th>五行／起長生之干</th>${TM.map(t => `<td>${t.w}／<b>${t.g}</b>${t.id === 't2' ? `<small>（時干${t.hourG}）</small>` : ''}</td>`).join('')}</tr>`;
+  h += `<tr><th>五行／起長生之干</th>${TM.map(t => t.unset ? '<td>未指定（由輸入者指定）</td>' : `<td>${t.w}／<b>${t.g}</b>${t.id === 't2' ? `<small>（時干${t.hourG}）</small>` : ''}</td>`).join('')}</tr>`;
   h += `<tr><th>時支${C.pil[3].zhi}十二運</th>${TM.map(t => `<td class="g2">${t.stage}</td>`).join('')}</tr>`;
   h += `<tr><th>歌句</th>${TM.map(t => `<td>${esc(t.line)}</td>`).join('')}</tr>`;
-  h += `<tr class="hl"><th>原數</th>${TM.map(t => `<td><b>${nTxt(t.n)}</b></td>`).join('')}</tr>`;
-  h += `<tr><th>男女</th>${TM.map(t => `<td>${t.son}陽為子、${t.dau}陰為女</td>`).join('')}</tr>`;
-  h += `<tr><th>月令${C.pil[1].zhi}／子緣</th>${TM.map(t => `<td>${t.ws}・子緣<b>${t.ziyuan}</b></td>`).join('')}</tr></tbody></table></div>`;
-  h += `<ol class="ms">${TM.map(t => `<li class="m"><div class="mt">${esc(t.title)}<span class="ok">老師確認</span></div><div class="d">${esc(t.why)}</div><div class="fire">「${esc(t.stage)}」：歌句「${esc(t.line)}」→ <b>${nTxt(t.n)}</b></div>${t.extra ? `<div class="small">${esc(t.extra)}</div>` : ''}${t.cs ? `<div class="small">${esc(t.cs)}</div>` : ''}${t.note ? `<div class="small">${esc(t.note)}</div>` : ''}${t.tu ? `<div class="small">${esc(t.tu)}</div>` : ''}<div class="small">月令${C.pil[1].zhi}，${t.w}為「${t.ws}」，子緣${t.ziyuan}（只論緣分厚薄，不改子數）。</div>${t.id === 't1' ? q('zp_intro') + q('zp_shizhi') : t.id === 't2' ? q('zp_shigan') + q('zp_yang') : q('qt_yong')}</li>`).join('')}</ol>`;
+  h += `<tr class="hl"><th>原數</th>${TM.map(t => `<td><b>${t.unset ? '不出數' : nTxt(t.n)}</b></td>`).join('')}</tr>`;
+  h += `<tr><th>男女</th>${TM.map(t => t.unset ? '<td>—</td>' : `<td>${t.son}陽為子、${t.dau}陰為女</td>`).join('')}</tr>`;
+  h += `<tr><th>月令${C.pil[1].zhi}／子緣</th>${TM.map(t => t.unset ? '<td>—</td>' : `<td>${t.ws}・子緣<b>${t.ziyuan}</b></td>`).join('')}</tr></tbody></table></div>`;
+  h += `<ol class="ms">${TM.map(t => `<li class="m"><div class="mt">${esc(t.title)}<span class="ok">老師確認</span></div><div class="d">${esc(t.why)}</div>${t.unset ? '<div class="fire"><b>未指定（由輸入者指定）</b></div>' : `<div class="fire">「${esc(t.stage)}」：歌句「${esc(t.line)}」→ <b>${nTxt(t.n)}</b></div>`}${t.extra ? `<div class="small">${esc(t.extra)}</div>` : ''}${t.cs ? `<div class="small">${esc(t.cs)}</div>` : ''}${t.note ? `<div class="small">${esc(t.note)}</div>` : ''}${t.tu ? `<div class="small">${esc(t.tu)}</div>` : ''}${t.unset ? '' : `<div class="small">月令${C.pil[1].zhi}，${t.w}為「${t.ws}」，子緣${t.ziyuan}（只論緣分厚薄，不改子數）。</div>`}${t.id === 't1' ? q('zp_intro') + q('zp_shizhi') : t.id === 't2' ? q('zp_shigan') + q('zp_yang') : q('qt_yong')}</li>`).join('')}</ol>`;
   h += `<p class="small">子緣厚薄為本站對應：月令旺、相為厚，休為中，囚、死為薄（旺相休囚死依《三命通會》卷二）。</p>`;
   // 彙整
   h += `<div class="sum"><div class="h">本站彙整（三法）：${R.range ? (R.range.lo === R.range.hi ? R.range.lo : R.range.lo + '～' + R.range.hi) + ' 子' : '三法皆未給數目'}</div>`;
-  h += `<div class="small">把老師確認三法的原數並列，取最少至最多；這是本站的統計，不是古籍原文。</div>`;
-  h += `<table class="cnt"><tbody>${TM.map(t => `<tr><td>${esc(t.title)}（${t.stage}）</td><td>${t.n ? (t.n[0] === t.n[1] ? t.n[0] : t.n[0] + '～' + t.n[1]) : '原句未給數目'}</td></tr>`).join('')}</tbody></table></div>`;
+  h += `<div class="small">把老師確認三法的原數並列，取最少至最多${TM[2].unset ? '（最旺用神未指定，只取第一、二法）' : ''}；這是本站的統計，不是古籍原文。</div>`;
+  h += `<table class="cnt"><tbody>${TM.map(t => `<tr><td>${esc(t.title)}（${t.stage}）</td><td>${t.unset ? '未指定，不計' : t.n ? (t.n[0] === t.n[1] ? t.n[0] : t.n[0] + '～' + t.n[1]) : '原句未給數目'}</td></tr>`).join('')}</tbody></table></div>`;
   // 子女男女（老師規則一）
   h += `<h2>子女男女<span class="ok">老師確認</span></h2><p>陽為男，陰為女：${male ? '官殺' : '食傷'}之甲丙戊庚壬為陽為子，乙丁己辛癸為陰為女。本盤子星${R.starW}：<b>${YANG_OF[R.starW]}為子、${YIN_OF[R.starW]}為女</b>。原局${male ? '官殺' : '食傷'}：陽干（子）${R.starGender.male} 見、陰干（女）${R.starGender.female} 見${R.stars.length ? '（' + R.stars.map(s => `${s.where}${s.g}${s.male ? '子' : '女'}`).join('、') + '）' : ''}。</p>${q(male ? 'zp_yang' : 'sm_f1')}`;
   // 參考
@@ -110,8 +111,8 @@ export function renderResult(S, C, R) {
   else if (!male) h += `<p class="small">女命流年：原局未同見傷官與梟印，《三命通會》「女命傷官梟印行財官亦堪决其有子」不發動；其他流年規則未見古籍明文，不列。</p>`;
   // 不確定時辰
   if (S.unk) {
-    const H = allHours(C.wall, lon, C.sex);
-    h += `<h2>時辰不確定：各時辰對照</h2><p class="small">每個時段依老師三法重算（第一法子星五行不變；第二法時干、第三法用神隨時柱而變）。</p><div class="scroll"><table class="hrs"><thead><tr><th>時辰</th><th>時柱</th><th>第一法</th><th>第二法</th><th>第三法</th><th>三法彙整</th></tr></thead><tbody>${H.map(x => `<tr><td>${x.label}</td><td>${x.hour}</td>${x.t.map(t => `<td>${t.g}・${t.stage}<br><small>${esc(t.line)}</small><br><b>${nTxt(t.n)}</b></td>`).join('')}<td>${x.range ? (x.range.lo === x.range.hi ? x.range.lo : x.range.lo + '～' + x.range.hi) + ' 子' : '—'}</td></tr>`).join('')}</tbody></table></div><p class="small">晚子時時干依次日日干，日柱不換。</p>`;
+    const H = allHours(C.wall, lon, C.sex, S.yw);
+    h += `<h2>時辰不確定：各時辰對照</h2><p class="small">每個時段依老師三法重算（第一法子星五行不變；第二法時干隨時柱而變；第三法用輸入者指定的最旺用神${S.yw ? '「' + S.yw + '」' : '，未指定則不出數'}）。</p><div class="scroll"><table class="hrs"><thead><tr><th>時辰</th><th>時柱</th><th>第一法</th><th>第二法</th><th>第三法</th><th>三法彙整</th></tr></thead><tbody>${H.map(x => `<tr><td>${x.label}</td><td>${x.hour}</td>${x.t.map(t => t.unset ? '<td>未指定</td>' : `<td>${t.g}・${t.stage}<br><small>${esc(t.line)}</small><br><b>${nTxt(t.n)}</b></td>`).join('')}<td>${x.range ? (x.range.lo === x.range.hi ? x.range.lo : x.range.lo + '～' + x.range.hi) + ' 子' : '—'}</td></tr>`).join('')}</tbody></table></div><p class="small">晚子時時干依次日日干，日柱不換。</p>`;
   }
   h += `<p class="small">內容僅供參考。歌訣與引文中依遮蔽規定不寫的句子，以「……」標示。</p></div>`;
   h += `<div class="actions"><button type="button" id="copyLink">複製分享連結</button><button type="button" id="pdfBtn">下載 PDF</button><button type="button" id="printBtn">列印</button><button type="button" id="again" class="pri">重新輸入</button></div>`;
@@ -196,7 +197,7 @@ const s0 = stateFromUrl();
 if (s0) {
   const S = readState(s0);
   $('#date').value = fmt(S.wall).slice(0, 10); if (s0.t && /^\d{4}$/.test(s0.t)) $('#time').value = s0.t.slice(0, 2) + ':' + s0.t.slice(2); $('#unk').checked = S.unk; $('#time').disabled = S.unk;
-  $$('input[name=g]').forEach(r => r.checked = r.value === S.sex); $('#lon').value = String(S.lon); $('#lon').oninput();
+  $$('input[name=g]').forEach(r => r.checked = r.value === S.sex); $('#lon').value = String(S.lon); $('#lon').oninput(); $('#yw').value = S.yw || '';
   show(s0);
 }
 window.__zixi = { buildChart, analyzeZixi, readState, renderResult };

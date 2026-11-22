@@ -12,37 +12,42 @@ for (const [name, opt] of [['desktop', { viewport: { width: 1280, height: 900 },
   await p.goto(base, { waitUntil: 'networkidle' });
   await p.screenshot({ path: `shots/${tag}-${name}-form.png` });
   await p.fill('#date', '2026-10-07'); await p.fill('#time', '22:10'); await p.selectOption('#city', 'custom'); await p.fill('#lon', '-122.68'); await p.dispatchEvent('#lon', 'input');
-  await p.click('#go'); await p.waitForSelector('#sheet'); await p.waitForTimeout(800);
+  await p.selectOption('#yw', '水'); await p.screenshot({ path: `shots/${tag}-${name}-form-filled.png`, fullPage: true }); await p.click('#go'); await p.waitForSelector('#sheet'); await p.waitForTimeout(800);
   const url = p.url(); log.push(`${name} 表單送出後網址：${url.replace(base, '')}`);
   const pil = await p.$$eval('table.bz td.g', t => t.map(x => x.textContent.trim()).join(''));
   log.push(`${name} 四柱：${pil}`);
   await p.screenshot({ path: `shots/${tag}-${name}-result.png` });
   await p.screenshot({ path: `shots/${tag}-${name}-full.png`, fullPage: true });
+  log.push(`${name} 網址含最旺用神：${url.includes('y=%E6%B0%B4')}；第三法：${(await p.$eval('table.tm', e => e.innerText)).includes('水／壬')}`);
   // 重新載入網址還原
-  await p.reload({ waitUntil: 'networkidle' }); await p.waitForSelector('#sheet'); log.push(`${name} 重新載入還原：${(await p.$$eval('table.bz td.g', t => t.map(x => x.textContent.trim()).join(''))) === pil}`);
+  await p.reload({ waitUntil: 'networkidle' }); await p.waitForSelector('#sheet'); log.push(`${name} 重新載入還原（含最旺用神 ${await p.$eval('#yw', e => e.value)}）：${(await p.$$eval('table.bz td.g', t => t.map(x => x.textContent.trim()).join(''))) === pil}`);
   // 遮蔽字（#sheet）
   const sheet = await p.$eval('#sheet', e => e.innerText); const hit = BAN.filter(w => sheet.includes(w)); log.push(`${name} #sheet 遮蔽字命中：${hit.length ? hit.join('、') : '無'}`);
   const poem = await p.$eval('#poemCard', e => e.textContent); log.push(`${name} 歌訣區含全文「入墓之時命夭亡」：${poem.includes('入墓之時命夭亡')}`);
   if (name === 'desktop') {
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#pdfBtn')]);
     await dl.saveAs(`shots/${tag}-example.pdf`); log.push(`PDF 下載：${dl.suggestedFilename()} ${fs.statSync(`shots/${tag}-example.pdf`).size} bytes`);
+    // 最旺用神留空
+    await p.goto(base + '?d=20261007&t=2210&u=0&g=m&lon=-122.68', { waitUntil: 'networkidle' }); await p.waitForSelector('#sheet');
+    { const tx = await p.$eval('#sheet', e => e.innerText); log.push(`最旺用神留空：顯示「未指定（由輸入者指定）」${tx.includes('未指定（由輸入者指定）')}；彙整「${(await p.$eval('.sum .h', e => e.textContent))}」`); }
+    await p.screenshot({ path: `shots/${tag}-desktop-blank-yw.png`, fullPage: false });
     // 女命、時辰不確定
-    await p.goto(base + '?d=19850315&t=&u=1&g=f&lon=121.5654&p=' + encodeURIComponent('台北'), { waitUntil: 'networkidle' }); await p.waitForSelector('#sheet');
-    const nh = await p.$$eval('table.hrs tbody tr', r => r.length); log.push(`女命、時辰不確定：時段表 ${nh} 列`);
+    await p.goto(base + '?d=19850315&t=&u=1&g=f&lon=121.5654&y=%E7%81%AB&p=' + encodeURIComponent('台北'), { waitUntil: 'networkidle' }); await p.waitForSelector('#sheet');
+    const nh = await p.$$eval('table.hrs tbody tr', r => r.length), nh3 = await p.$$eval('table.hrs tbody tr', r => r.filter(x => x.children[4].textContent.startsWith('丙')).length); log.push(`女命、時辰不確定、最旺用神火：時段表 ${nh} 列，第三法 ${nh3}/13 列用丙起長生`);
     await p.screenshot({ path: `shots/${tag}-female-unknown.png`, fullPage: true });
     // 壞輸入不阻擋
     await p.goto(base + '?d=abc&t=99&u=0&g=x&lon=999', { waitUntil: 'networkidle' }); await p.waitForSelector('#sheet');
     log.push(`壞輸入：${(await p.$eval('#sheet .hint', e => e.textContent)).slice(0, 80)}`);
     // 瀏覽器 vs node：300 盤
     let seed = 4242; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const cases = [];
-    for (let i = 0; i < 300; i++) cases.push([Date.UTC(1900 + Math.floor(R() * 200), Math.floor(R() * 12), 1 + Math.floor(R() * 28), Math.floor(R() * 24), Math.floor(R() * 60)), -180 + R() * 360, R() < .5 ? 'm' : 'f']);
-    const br = await p.evaluate((cases) => cases.map(([w, l, s]) => { const Z = window.__zixi, C = Z.buildChart(w, l, s), A = Z.analyzeZixi(C); return JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }); }), cases);
-    let same = 0; cases.forEach(([w, l, s], i) => { const C = buildChart(w, l, s), A = analyzeZixi(C); if (JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }) === br[i]) same++; });
+    for (let i = 0; i < 300; i++) cases.push([['', '金', '木', '水', '火', '土'][Math.floor(R() * 6)], Date.UTC(1900 + Math.floor(R() * 200), Math.floor(R() * 12), 1 + Math.floor(R() * 28), Math.floor(R() * 24), Math.floor(R() * 60)), -180 + R() * 360, R() < .5 ? 'm' : 'f']);
+    const br = await p.evaluate((cases) => cases.map(([y, w, l, s]) => { const Z = window.__zixi, C = Z.buildChart(w, l, s), A = Z.analyzeZixi(C, { yw: y }); return JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }); }), cases);
+    let same = 0; cases.forEach(([y, w, l, s], i) => { const C = buildChart(w, l, s), A = analyzeZixi(C, { yw: y }); if (JSON.stringify({ p: [C.P.year.gz, C.P.month.gz, C.P.day.gz, C.P.hour.gz], c: A.counts, t: A.teacher, r: A.range, m: A.methods.map(m => [m.id, m.how]) }) === br[i]) same++; });
     log.push(`瀏覽器 vs node：300 盤四柱、老師三法、彙整、參考各法說明全同 ${same}/300`);
     // 瀏覽器內渲染 1000 盤 #sheet 遮蔽字
     const r2 = await p.evaluate(({ BAN }) => { const Z = window.__zixi; let seed = 99, hits = [], crash = 0; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const d = document.createElement('div'); document.body.appendChild(d);
-      for (let i = 0; i < 1000; i++) { const st = { d: String(1800 + Math.floor(R() * 400)) + String(1 + Math.floor(R() * 12)).padStart(2, '0') + String(1 + Math.floor(R() * 28)).padStart(2, '0'), t: R() < .2 ? '' : String(Math.floor(R() * 24)).padStart(2, '0') + String(Math.floor(R() * 60)).padStart(2, '0'), u: R() < .1 ? '1' : '0', g: R() < .5 ? 'm' : 'f', lon: String(-180 + R() * 360), p: '' };
-        try { const S = Z.readState(st), C = Z.buildChart(S.wall, S.lon, S.sex), A = Z.analyzeZixi(C); d.innerHTML = Z.renderResult(S, C, A); const tx = d.innerText; for (const w of BAN) if (tx.includes(w)) hits.push(w + ' ' + JSON.stringify(st)); } catch (e) { crash++; hits.push('crash ' + e.message); } }
+      for (let i = 0; i < 1000; i++) { const st = { d: String(1800 + Math.floor(R() * 400)) + String(1 + Math.floor(R() * 12)).padStart(2, '0') + String(1 + Math.floor(R() * 28)).padStart(2, '0'), t: R() < .2 ? '' : String(Math.floor(R() * 24)).padStart(2, '0') + String(Math.floor(R() * 60)).padStart(2, '0'), u: R() < .1 ? '1' : '0', g: R() < .5 ? 'm' : 'f', y: ['', '金', '木', '水', '火', '土', 'x'][Math.floor(R() * 7)], lon: String(-180 + R() * 360), p: '' };
+        try { const S = Z.readState(st), C = Z.buildChart(S.wall, S.lon, S.sex), A = Z.analyzeZixi(C, { yw: S.yw }); d.innerHTML = Z.renderResult(S, C, A); const tx = d.innerText; for (const w of BAN) if (tx.includes(w)) hits.push(w + ' ' + JSON.stringify(st)); } catch (e) { crash++; hits.push('crash ' + e.message); } }
       d.remove(); return { hits: hits.slice(0, 5), n: hits.length, crash }; }, { BAN });
     log.push(`瀏覽器內渲染 1000 盤（含時辰不確定）：當機 ${r2.crash}，#sheet 遮蔽字／undefined／NaN 命中 ${r2.n} ${r2.hits.join(' | ')}`);
   }
