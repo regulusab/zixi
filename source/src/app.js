@@ -22,7 +22,7 @@ $('#go').onclick = () => {
   history.replaceState(null, '', '?' + new URLSearchParams(Object.entries(st).filter(([k, v]) => v !== '' || ['d', 't'].includes(k))).toString());
   show(st);
 };
-function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', y: u.get('y') || '', n: u.get('n') || '', pf: u.get('pf') || '', p: u.get('p') || '' }; }
+function stateFromUrl() { const u = new URLSearchParams(location.search); if (!u.get('d')) return null; return { d: u.get('d'), t: u.get('t') || '', u: u.get('u') || '0', g: u.get('g') || 'm', lon: u.get('lon') || '121.5654', y: u.get('y') || '', n: u.get('n') || '', p: u.get('p') || '' }; }
 
 export function readState(st) {
   const warn = [];
@@ -35,7 +35,7 @@ export function readState(st) {
   if (unk && !tm) { h = 12; mi = 0; }
   const yw = '金木水火土'.includes(st.y || '') && (st.y || '').length === 1 ? st.y : '';
   if (st.notes) warn.unshift(...st.notes);
-  return { name: String(st.n || '').slice(0, 40), pf: String(st.pf || '').slice(0, 20), code: st.code || '', yw, wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
+  return { name: String(st.n || '').slice(0, 40), code: st.code || '', yw, wall: Date.UTC(y, mo - 1, da, h, mi), lon, sex: st.g === 'f' ? 'f' : 'm', unk, warn, p: st.p };
 }
 
 function q(id) { const x = Q[id]; if (!x) return ''; const s = SRC[x.s]; return `<blockquote>${esc(shown(id))}${x.note ? `<span class="qn">（${esc(x.note)}）</span>` : ''}<cite>${esc(s.book)}${esc(x.ch)}（<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.site)}</a>）</cite></blockquote>`; }
@@ -55,7 +55,7 @@ export function renderResult(S, C, R) {
   const P = C.P, male = R.male, lon = S.lon;
   let h = `<div class="card" id="sheet">`;
   if (S.warn.length) h += `<p class="hint">說明：${S.warn.map(esc).join('；')}</p>`;
-  h += `<h2>命盤</h2><dl class="meta">${S.name ? `<dt>姓名</dt><dd>${esc(S.name)}</dd>` : ''}${S.code ? `<dt>命造代碼</dt><dd>${esc(S.code)}${S.pf ? `（判法「${esc(S.pf)}」：本站排盤只有一種規則，判法不改變本站結果）` : ''}</dd>` : ''}<dt>性別</dt><dd>${male ? '男命' : '女命'}</dd>`;
+  h += `<h2>命盤</h2><dl class="meta">${S.name ? `<dt>姓名</dt><dd>${esc(S.name)}</dd>` : ''}${S.code ? `<dt>命造代碼</dt><dd>${esc(S.code)}</dd>` : ''}<dt>性別</dt><dd>${male ? '男命' : '女命'}</dd>`;
   h += `<dt>出生</dt><dd>${S.unk ? fmt(P.wall).slice(0, 10) + '（時辰不確定，詳表暫以午時排）' : fmt(P.wall) + '（地方平時）'}</dd><dt>地點</dt><dd>${esc(S.p || '')} ${lon >= 0 ? '東經' : '西經'} ${Math.abs(lon)}°</dd>`;
   h += `<dt>節氣</dt><dd>${P.jie.name} ${P.jie.lmt || ''}（出生地地方平時）</dd>`;
   h += `<dt>日柱</dt><dd>${P.day.gz}${P.shift ? `（東經 70° 以西日柱干支進一位，日期不動；當地曆日干支為${P.day.rawGz}）` : ''}</dd>`;
@@ -206,7 +206,7 @@ if (!s0) {
   if (!raw) { try { raw = localStorage.getItem(MZ_KEY); from = '總入口'; } catch (e) { raw = null; } }
   if (raw && raw.trim()) {
     const P = parseCode(raw); s0 = { ...P.st, notes: [`已讀取${from}命造代碼「${P.code}」自動排盤`, ...P.notes], code: P.code };
-    const keep = { d: s0.d || '', t: s0.t, u: s0.u, g: s0.g, lon: s0.lon, y: '', n: s0.n, pf: s0.pf, p: s0.p };
+    const keep = { d: s0.d || '', t: s0.t, u: s0.u, g: s0.g, lon: s0.lon, y: '', n: s0.n, p: s0.p };
     history.replaceState(null, '', '?' + new URLSearchParams(Object.entries(keep).filter(([k, v]) => v !== '' || ['d', 't'].includes(k))).toString());
   }
 }

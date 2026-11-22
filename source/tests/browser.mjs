@@ -43,12 +43,12 @@ for (const [name, opt] of [['desktop', { viewport: { width: 1280, height: 900 },
     // 命造代碼：總入口 localStorage → 無參數開本站自動排盤
     { const root = tag === 'live' ? 'https://regulusab.github.io/' : base;
       await p.goto(root, { waitUntil: 'networkidle' });
-      if (tag === 'live') { await p.fill('#mzIn', '20261007-2210-男--測試者'); await p.waitForTimeout(200); await p.screenshot({ path: `shots/${tag}-portal-code.png` }); }
-      else await p.evaluate(() => localStorage.setItem('rg.mingzao', '20261007-2210-男--測試者'));
+      if (tag === 'live') { await p.fill('#mzIn', '20261007-2210-男-波特蘭-測試者'); await p.waitForTimeout(200); await p.screenshot({ path: `shots/${tag}-portal-code.png` }); }
+      else await p.evaluate(() => localStorage.setItem('rg.mingzao', '20261007-2210-男-波特蘭-測試者'));
       await p.goto(base, { waitUntil: 'networkidle' }); await p.waitForSelector('#sheet');
       const pil2 = await p.$$eval('table.bz td.g', t => t.map(x => x.textContent.trim()).join(''));
       const hint = await p.$eval('#sheet .hint', e => e.textContent);
-      log.push(`命造代碼自動排盤（${tag === 'live' ? '在總入口輸入框填入' : 'localStorage 寫入'}「20261007-2210-男--測試者」，開本站不帶參數）：四柱 ${pil2}，網址 ${p.url().replace(base, '')}，姓名顯示 ${(await p.$eval('#sheet', e => e.innerText)).includes('測試者')}；說明「${hint.slice(0, 70)}」`);
+      log.push(`命造代碼自動排盤（${tag === 'live' ? '在總入口輸入框填入' : 'localStorage 寫入'}「20261007-2210-男-波特蘭-測試者」，開本站不帶參數）：四柱 ${pil2}，網址 ${p.url().replace(base, '')}，姓名顯示 ${(await p.$eval('#sheet', e => e.innerText)).includes('測試者')}；說明「${hint.slice(0, 70)}」`);
       await p.screenshot({ path: `shots/${tag}-code-auto.png` });
       await p.evaluate(() => { window.__opened = []; window.open = u => { window.__opened.push(u); return {}; }; }); await p.click('#lineSum'); await p.click('#lineLink');
       const op = await p.evaluate(() => window.__opened.map(decodeURIComponent)); log.push(`LINE 摘要／連結含姓名：${op.some(u => u.includes('測試者'))}`);

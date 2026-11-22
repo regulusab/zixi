@@ -79,12 +79,33 @@ const BAN = ['加一天', '前世', '風水', '夭', '送終', '損子', '傷損
     } catch (e) { crash++; if (crash < 5) bad(`當機 ${new Date(wall).toISOString()} ${lon} ${sex}: ${e.stack.split('\n').slice(0, 2).join(' ')}`); } }
   log(`模糊測試：20,000 盤（1800–2199 年、經度 −180～180、男女各半、最旺用神隨機指定或留空；每 50 盤另跑 13 時段表）：當機 ${crash}，遮蔽字／undefined／NaN 命中 ${hits}；三法皆落墓／胎而無原數者 ${noRange} 盤（頁面顯示「三法皆未給數目」，照常出結果）`);
   log(`  時支落於十二運的分布：${STAGES.map(s => s + ' ' + (lineHit[s] || 0)).join('、')}`); }
-// 7. 命造代碼
-{ const { parseCode } = await import('../src/mzcode.js');
-  const cases = [['19850315-1430-男--王小明', { d: '19850315', t: '1430', u: '0', g: 'm', n: '王小明' }], ['20261007-2210-女-甲-陳-大文', { d: '20261007', t: '2210', g: 'f', pf: '甲', n: '陳-大文' }], ['19900101-??-坤', { d: '19900101', u: '1', g: 'f' }], ['１９８５０３１５－０９０５－乾', { d: '19850315', t: '0905', g: 'm' }], ['abc', { d: '', u: '1' }]];
-  let ok = 0; for (const [c, e] of cases) { const r = parseCode(c).st; if (Object.entries(e).every(([k, v]) => r[k] === v)) ok++; else bad(`命造代碼 ${c} → ${JSON.stringify(r)}`); }
-  let seed = 5, crash = 0; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const CH = '0123456789-男女乾坤?:xa 王';
-  for (let i = 0; i < 5000; i++) { let c = ''; const L = Math.floor(R() * 30); for (let j = 0; j < L; j++) c += CH[Math.floor(R() * CH.length)]; try { const st = parseCode(c).st; const C = buildChart(Date.UTC(1990, 0, 1, 12), 121.5654, st.g); analyzeZixi(C, {}); } catch (e) { crash++; } }
-  log(`命造代碼解析：${ok}/${cases.length} 例相符；隨機 5000 個亂碼代碼：當機 ${crash}`); }
+// 7. 命造代碼（年月日-時分-性別-出生地-姓名）
+{ const { parseCode, resolvePlace } = await import('../src/mzcode.js');
+  const day = code => { const st = parseCode(code).st; const P = pillars(Date.UTC(+st.d.slice(0, 4), +st.d.slice(4, 6) - 1, +st.d.slice(6, 8), +st.t.slice(0, 2), +st.t.slice(2)), +st.lon); return [P.year.gz, P.month.gz, P.day.gz, P.hour.gz].join(' '); };
+  const cases = [
+    ['20261007-2210-男-波特蘭-測試', { d: '20261007', t: '2210', g: 'm', lon: '-122.68', n: '測試' }, '丙午 丁酉 乙卯 丁亥'],
+    ['20261007-2210-男-122.68W-測試', { lon: '-122.68' }, '丙午 丁酉 乙卯 丁亥'],
+    ['20261007-2210-男-西經122.68-測試', { lon: '-122.68' }, '丙午 丁酉 乙卯 丁亥'],
+    ['20261007-2210-男--122.68-測試', { lon: '-122.68' }, '丙午 丁酉 乙卯 丁亥'],
+    ['20261007-2210-男-波特兰-测试', { lon: '-122.68' }, '丙午 丁酉 乙卯 丁亥'],
+    ['20261007-2210-男-台北-王小明', { lon: '121.5654', n: '王小明' }, '丙午 丁酉 甲寅 乙亥'],
+    ['20261007-2210-男-臺北市-王小明', { lon: '121.5654' }, null],
+    ['19850315-1430-女-121.5E-陳-大文', { lon: '121.5', g: 'f', n: '陳-大文' }, null],
+    ['19850315-1430-女-東經121.5', { lon: '121.5' }, null],
+    ['19850315-1430-女-香港', { lon: '114.1694' }, null],
+    ['19850315-1430-女-广州市', { lon: '113.2644' }, null],
+    ['19850315-1430-女-纽约', { lon: '-74.006' }, null],
+    ['19850315-1430-女-台灣高雄市', { lon: '120.3014' }, null],
+    ['19850315-1430-女-哈尔滨', { lon: '126.5349' }, null],
+    ['19850315-1430-女-火星', { lon: '121.5654', p: '台北' }, null],
+    ['19850315-1430-女--', { lon: '121.5654' }, null],
+    ['19900101-??-坤', { d: '19900101', u: '1', g: 'f', lon: '121.5654' }, null],
+    ['１９８５０３１５－０９０５－乾－台中', { d: '19850315', t: '0905', g: 'm', lon: '120.6736' }, null],
+    ['abc', { d: '', u: '1' }, null]];
+  let ok = 0; for (const [c, e, pz] of cases) { const r = parseCode(c).st; let good = Object.entries(e).every(([k, v]) => r[k] === v); if (good && pz) good = day(c) === pz; if (good) ok++; else bad(`命造代碼 ${c} → ${JSON.stringify(r)}${pz ? ' ' + day(c) : ''}`); }
+  log(`命造代碼解析（地名繁簡、經度 E/W／東經西經／負號、未知或空白→台北）：${ok}/${cases.length} 例相符；20261007-2210-男-波特蘭／122.68W／西經122.68／-122.68／波特兰 → ${day('20261007-2210-男-波特蘭')}`);
+  let seed = 5, crash = 0; const R = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const CH = '0123456789-男女乾坤?:xaEW.東經西 王台北香港纽约';
+  for (let i = 0; i < 5000; i++) { let c = ''; const L = Math.floor(R() * 34); for (let j = 0; j < L; j++) c += CH[Math.floor(R() * CH.length)]; try { const st = parseCode(c).st; const lon = +st.lon; if (!isFinite(lon) || Math.abs(lon) > 180) throw new Error('lon ' + st.lon); const C = buildChart(Date.UTC(1990, 0, 1, 12), lon, st.g); analyzeZixi(C, {}); } catch (e) { crash++; if (crash < 3) bad('代碼當機 ' + c + ' ' + e.message); } }
+  log(`隨機 5000 個亂碼命造代碼：當機 ${crash}`); }
 log(fails ? `\n共 ${fails} 項不符` : '\n全部通過');
 fs.writeFileSync('tests/verify-result.txt', out.join('\n') + '\n');
